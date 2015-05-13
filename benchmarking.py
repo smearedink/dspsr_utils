@@ -6,7 +6,7 @@ def test_dspsr(**kwargs):
     """
     Run dspsr with a variety of inputs for benchmarking.
 
-    example: t, ut, out, err = test_run(dm=5)
+    example: t, ut, out, err, call = test_dspsr(dm=5)
 
     kwargs and their defaults:
     (dspsr arguments)
@@ -31,6 +31,7 @@ def test_dspsr(**kwargs):
           (in principle, this is about the same as the values of the times above summed)
         - the stdout (from which the previous two items are parsed), split into lines
         - the stderr
+	- the dspsr system call used
     """
     if "F" not in kwargs: kwargs["F"] = 1024
     if "T" not in kwargs: kwargs["T"] = 10
