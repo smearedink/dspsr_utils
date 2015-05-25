@@ -1,6 +1,5 @@
-import numpy as np
-import json
-from subprocess import Popen, PIPE
+import json as _json
+from subprocess import Popen as _Popen, PIPE as _PIPE
 
 def test_dspsr(**kwargs):
     """
@@ -15,12 +14,13 @@ def test_dspsr(**kwargs):
       cuda - comma-separated list of CUDA devices (as a string) ["0"]
       minram - minimum RAM usage in MB [1]
       D - dispersion measure [use DM from pulsar given in kwargs, otherwise this overrides it]
+      fftlen - set desired FFT length (overrides minX if used)
       minX - set desired FFT length as multiple of minimum length [unset, automatically chooses]
       t - number of CPU processor threads [unset, so 1]
     (header entries)
       source - pulsar to fold [1937+21]
       freq - centre frequency in MHz [600.0]
-      nchan - number of input frequency channels [512]
+      nchan - number of input frequency channels [16]
       bw - observing bandwidth in MHz [400.0]
     (other options)
       print_cmd - print the dspsr call before running it [False]
@@ -40,7 +40,7 @@ def test_dspsr(**kwargs):
 
     if "source" not in kwargs: kwargs["source"] = "1937+21"
     if "freq" not in kwargs: kwargs["freq"] = 600.
-    if "nchan" not in kwargs: kwargs["nchan"] = 512
+    if "nchan" not in kwargs: kwargs["nchan"] = 16
     if "bw" not in kwargs: kwargs["bw"] = 400.
     
     arg_dict = {}
@@ -51,7 +51,9 @@ def test_dspsr(**kwargs):
     arg_dict["-minram"] = str(kwargs["minram"])
     if "D" in kwargs:
         arg_dict["-D"] = str(kwargs["D"])
-    if "minX" in kwargs:
+    if "fftlen" in kwargs:
+        arg_dict["-x"] = str(kwargs["fftlen"])
+    elif "minX" in kwargs:
         arg_dict["-x"] = "minX%d" % kwargs["minX"]
     if "t" in kwargs:
         arg_dict["-t"] = str(kwargs["t"])
@@ -89,7 +91,7 @@ def test_dspsr(**kwargs):
         if kwargs['print_cmd']:
             print dspsr_call
 
-    ex = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    ex = _Popen(cmd, stdout=_PIPE, stderr=_PIPE)
     ex_err, ex_out = ex.communicate()
 
     # get rid of the progress text
@@ -177,7 +179,7 @@ class Trials:
             print "Run execute() method first to get results."
         else:
             with open(filename, 'w') as f:
-                json.dump({"times":self.all_times,\
+                _json.dump({"times":self.all_times,\
                     "utime":self.all_utime, "stdout":self.all_stdout,\
                     "stderr":self.all_stderr, "comment":self.comment,\
                     "varied_arg":self.varied_arg,\
