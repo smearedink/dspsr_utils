@@ -74,7 +74,7 @@ def test_dspsr(**kwargs):
     cmd.append("FREQ=%s" % str(kwargs["freq"]))
     cmd.append("NCHAN=%d" % kwargs["nchan"])
     cmd.append("NPOL=2")
-    cmd.append("NBIT=8")
+    cmd.append("NBIT=4")
     cmd.append("NDIM=2")
     cmd.append("TSAMP=%f" % (kwargs["nchan"] / float(kwargs["bw"])))
     cmd.append("BW=%s" % str(kwargs["bw"]))
