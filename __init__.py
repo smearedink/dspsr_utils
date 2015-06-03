@@ -1,5 +1,6 @@
 import numpy as _np
 import cPickle as _pickle
+import matplotlib.pyplot as _plt
 from subprocess import Popen as _Popen, PIPE as _PIPE
 
 def test_dspsr(**kwargs):
@@ -169,7 +170,18 @@ class dspsrTrials:
         """
         with open(filename, "rb") as f:
             loaded_obj = _pickle.load(f)
-        return loaded_obj
+        # Set attribute by attribute instead of returning loaded_obj to be slightly
+        # more robust against future changes in the class definition
+        new_obj = cls(loaded_obj.varied_arg, loaded_obj.varied_arg_values, loaded_obj.fixed_args)
+        new_obj.executed = True
+        new_obj.all_times = loaded_obj.all_times
+        new_obj.all_utime = loaded_obj.all_utime
+        new_obj.all_stdout = loaded_obj.all_stdout
+        new_obj.all_stderr = loaded_obj.all_stderr
+        new_obj.all_dspsr_calls = loaded_obj.all_dspsr_calls
+        new_obj.good_runs = loaded_obj.good_runs
+        new_obj.comment = loaded_obj.comment
+        return new_obj
 
     def execute(self):
         if self.executed:
@@ -210,6 +222,15 @@ class dspsrTrials:
             with open(filename, 'wb') as f:
                 _pickle.dump(self, f, _pickle.HIGHEST_PROTOCOL)
 
-#    def plot_results(self):
-#        pass
-
+    def plot_results(self):
+        if not self.executed:
+            print "Run execute() method first to get results."
+        elif not self.good_runs.any():
+            print "There were no successful runs to plot."
+        else:
+            utime_noprep = _np.array(self.all_utime) - _np.array(self.all_times['Preparation'])
+            good_arg_values = _np.array(self.varied_arg_values)[self.good_runs]
+            _plt.plot(good_arg_values, utime_noprep)
+            _plt.xlabel(self.varied_arg)
+            _plt.ylabel("Total time minus dspsr prep time (s)")
+            _plt.show()
