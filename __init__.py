@@ -1,11 +1,12 @@
-import json as _json
+import numpy as _np
+import cPickle as _pickle
 from subprocess import Popen as _Popen, PIPE as _PIPE
 
 def test_dspsr(**kwargs):
     """
     Run dspsr with a variety of inputs for benchmarking.
 
-    example: t, ut, out, err, call = test_dspsr(dm=5)
+    example: t, ut, out, err, call = test_dspsr(D=5, T=20, bw=300.)
 
     kwargs and their defaults:
     (dspsr arguments)
@@ -96,19 +97,21 @@ def test_dspsr(**kwargs):
 
     # get rid of the progress text
     ex_out = ex_out.split('\n')
-    for line in ex_out:
-        if "Finished 0 s" in line:
-            ex_out.remove(line)
+    for ii in range(len(ex_out)):
+        if "\r" in ex_out[ii]:
+            ex_out[ii] = ex_out[ii].split("\r")[-1]
 
-    timed_parts = ["Dummy", "DummyUnpacker", "CUDA::Transfer", "Filterbank", "Detection", "Fold"]
     times = {}
     unix_time = -1.
 
     # put the times from the various parts of the code into a dictionary
+    time_line = False
     for line in ex_out:
         split_line = line.split()
+        # check if list of timed items has ended
+        if "unloading" in line: time_line = False
         if len(split_line):
-            if split_line[0] in timed_parts:
+            if time_line:
                 times[split_line[0]] = float(split_line[1])
             # make sure to get the preparation time and unloading time as well
             elif "dspsr: prepared in" in line:
@@ -117,34 +120,56 @@ def test_dspsr(**kwargs):
                 times["Unloading"] = float(split_line[2])
             elif "TOTAL WALL TIME ELAPSED" in line:
                 unix_time = float(split_line[4])
+        # check if list of timed items is beginning        
+        if "Time Spent" in line: time_line = True
 
     return times, unix_time, ex_out, ex_err, dspsr_call
 
-class Trials:
-
-    timed_parts = ["Dummy", "DummyUnpacker", "CUDA::Transfer", "Filterbank",\
-        "Detection", "Fold", "Preparation", "Unloading"]
-
+class dspsrTrials:
+    
     def __init__(self, varied_arg, varied_arg_values, fixed_args={}):
         """
+        Set up and execute the test_dspsr function, varying one argument and
+        keeping all other arguments fixed (either at their default values as
+        documented in the test_dspsr function or at values specified in
+        the fixed_args dictionary).
+
         varied_arg: string identifier for argument being varied
         varied_arg_values: an iterable of values to walk through
         fixed_args: a dictionary whose keys are string identifiers for
           arguments being held fixed and whose values are the fixed value--
           any arguments left out are fixed at their default values
+
+        If loading a file that was saved with save_results, use the
+        dspsrTrials.from_file method
+
+        The "good_runs" attribute has the same length as varied_arg_values and
+        is a boolean numpy array.  It begins as all False, but for each
+        successful run (a run that results in no errors) the corresponding entry
+        is changed to True.
         """
         self.varied_arg = varied_arg
         self.varied_arg_values = varied_arg_values
         self.fixed_args = fixed_args
         self.executed = False
         self.all_times = {}
-        for part in self.timed_parts:
-            self.all_times[part] = []
         self.all_utime = []
         self.all_stdout = []
         self.all_stderr = []
         self.all_dspsr_calls = []
+        self.good_runs = _np.zeros_like(varied_arg_values, bool)
         self.comment = ""
+
+    @classmethod
+    def from_file(cls, filename):
+        """
+        Restore the results of an already-executed dspsrTrials object.
+
+        filename: The output file created using dspsrTrials.save_results
+        """
+        with open(filename, "rb") as f:
+            loaded_obj = _pickle.load(f)
+        return loaded_obj
 
     def execute(self):
         if self.executed:
@@ -156,14 +181,14 @@ class Trials:
                 test_dspsr_args[self.varied_arg] = arg_val
                 test_dspsr_args["print_cmd"] = True
                 t, ut, out, err, dspsr_call = test_dspsr(**test_dspsr_args)
-                if len(t) == len(self.timed_parts):
-                    for part in self.timed_parts:
+                if not any(["Error" in line for line in out]):
+                    if not len(self.all_times):
+                        for part in t.keys():
+                            self.all_times[part] = []
+                    for part in t.keys():
                         self.all_times[part].append(t[part])
                     self.all_utime.append(ut)
-                else:
-                    for part in self.timed_parts:
-                        self.all_times[part].append(-1.)
-                    self.all_utime.append(-1.)
+                    self.good_runs[ii] = True
                 self.all_stdout.append(out)
                 self.all_stderr.append(err)
                 self.all_dspsr_calls.append(dspsr_call)
@@ -175,17 +200,16 @@ class Trials:
         self.comment = comment
 
     def save_results(self, filename):
+        """
+        Save the results to a binary file.  To reload these results for further use,
+        restore the object with dspsrTrials.from_file.
+        """
         if not self.executed:
             print "Run execute() method first to get results."
         else:
-            with open(filename, 'w') as f:
-                _json.dump({"times":self.all_times,\
-                    "utime":self.all_utime, "stdout":self.all_stdout,\
-                    "stderr":self.all_stderr, "comment":self.comment,\
-                    "varied_arg":self.varied_arg,\
-                    "varied_arg_values":list(self.varied_arg_values),\
-                    "fixed_args":self.fixed_args,\
-                    "dspsr_calls":self.all_dspsr_calls}, f)
+            with open(filename, 'wb') as f:
+                _pickle.dump(self, f, _pickle.HIGHEST_PROTOCOL)
 
 #    def plot_results(self):
 #        pass
+
